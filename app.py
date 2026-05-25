@@ -3,7 +3,7 @@ import yt_dlp
 import os
 
 # הגדרות עמוד ועיצוב בעברית
-st.set_page_config(page_title="YouTube Downloader", page_icon="🎵", layout="centered")
+st.set_page_config(page_title="Premium Downloader", page_icon="🎵", layout="centered")
 
 st.markdown("""
     <style>
@@ -20,50 +20,69 @@ st.markdown("""
         font-size: 1.1rem;
     }
     input { text-align: left; direction: ltr; }
+    .stRadio > div { flex-direction: row; justify-content: center; gap: 20px; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("הורדת שירים מיוטיוב 🎵")
-st.write("הדביקו לינק מיוטיוב, לחצו על הכפתור ותקבלו קובץ שמע ישירות למכשיר.")
+st.title("הורדת שירים וסרטונים מיוטיוב 🎬🎵")
+st.write("הדביקו לינק, בחרו פורמט, ותורידו ישירות למכשיר בחינם.")
 
+# תיבת קלט ללינק
 url_input = st.text_input("הלינק שלך:", placeholder="https://www.youtube.com/watch?v=...")
 
-if st.button("הפוך ל-MP3 והורד"):
+# בחירת סוג ההורדה (שיר או וידאו)
+download_type = st.radio("מה ברצונך להוריד?", ["שיר (MP3)", "סרטון וידאו (MP4)"])
+
+if st.button("הכן קובץ להורדה"):
     if not url_input:
         st.error("🚨 אופס, שכחת להדביק לינק!")
     else:
-        with st.spinner("⏳ המנוע מעבד את השיר... זה לוקח כמה שניות"):
+        with st.spinner("⏳ המנוע מעבד את הקובץ בענן... רק רגע"):
             try:
-                # הגדרות הורדה קלות שמתאימות לשרת ענן ללא FFmpeg חיצוני
-                ydl_opts = {
-                    'format': 'bestaudio/best',
-                    'outtmpl': '%(title)s.%(ext)s',
-                    'restrictfilenames': True,
-                }
+                # הגדרות דינמיות לפי בחירת המשתמש שעובדות פיקס על שרת ענן
+                if download_type == "שיר (MP3)":
+                    ydl_opts = {
+                        'format': 'bestaudio',  # מוריד את האודיו הכי טוב שזמין מובנה
+                        'outtmpl': '%(title)s.mp3', # שומר ישר כ-MP3 בלי המרות מורכבות שעושות תקלות
+                        'restrictfilenames': True,
+                    }
+                    mime_type = "audio/mpeg"
+                    default_ext = ".mp3"
+                else:
+                    ydl_opts = {
+                        'format': 'best[ext=mp4]/best', # מוריד וידאו קומפלט כולל סאונד בפורמט MP4
+                        'outtmpl': '%(title)s.mp4',
+                        'restrictfilenames': True,
+                    }
+                    mime_type = "video/mp4"
+                    default_ext = ".mp4"
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url_input, download=True)
                     filename = ydl.prepare_filename(info)
                     
-                    # שינוי סיומת זמני כדי שהדפדפן יזהה את זה כקובץ שמע בקלות
-                    base, ext = os.path.splitext(filename)
-                    mp3_filename = base + '.mp3'
-                    os.rename(filename, mp3_filename)
-                    
-                    with open(mp3_filename, "rb") as file:
+                    # וידוא סיומת נכונה למניעת באגים
+                    if download_type == "שיר (MP3)" and not filename.endswith('.mp3'):
+                        base, _ = os.path.splitext(filename)
+                        new_name = base + '.mp3'
+                        if os.path.exists(filename):
+                            os.rename(filename, new_name)
+                        filename = new_name
+
+                    with open(filename, "rb") as file:
                         file_bytes = file.read()
                         
-                        st.success("✅ השיר מוכן!")
+                        st.success(f"✅ ה{download_type.split(' ')[0]} מוכן!")
                         st.download_button(
-                            label="⬇️ לחצו כאן לשמירת השיר",
+                            label="⬇️ לחצו כאן לשמירת הקובץ",
                             data=file_bytes,
-                            file_name=os.path.basename(mp3_filename),
-                            mime="audio/mpeg"
+                            file_name=os.path.basename(filename),
+                            mime=mime_type
                         )
                 
                 # ניקוי השרת
-                if os.path.exists(mp3_filename):
-                    os.remove(mp3_filename)
+                if os.path.exists(filename):
+                    os.remove(filename)
                     
             except Exception as e:
-                st.error("❌ תקלה בהורדה. ודאו שהלינק תקין ונסו שוב.")
+                st.error("❌ תקלה בהורדה. יוטיוב חסם את הבקשה או שהלינק לא תקין. נסה לינק אחר.")
