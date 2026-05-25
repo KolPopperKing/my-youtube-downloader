@@ -27,8 +27,7 @@ st.title("הורדת שירים וסרטונים מיוטיוב 🎬🎵")
 st.write("הדביקו לינק, בחרו פורמט, והורידו ישירות למכשיר שלכם בצורה יציבה.")
 
 # תיבת קלט ללינק
-url_input = st.text_input("הלינק שלך:", placeholder="https://www.youtube.com/watch?v=...")
-
+RENDER_BACKEND_URL = "https://my-downloader-ap.onrender.com/download"
 # בחירת סוג ההורדה
 download_type = st.radio("מה ברצונך להוריד?", ["שיר (MP3)", "סרטון וידאו (MP4)"])
 
