@@ -1,4 +1,5 @@
+streamlit
+yt-dlp
 fastapi
 uvicorn
-yt-dlp
 requests
