@@ -27,38 +27,36 @@ st.title("הורדת שירים וסרטונים מיוטיוב 🎬🎵")
 st.write("הדביקו לינק, בחרו פורמט, והורידו ישירות למכשיר שלכם בצורה יציבה.")
 
 # תיבת קלט ללינק
-RENDER_BACKEND_URL = "https://my-downloader-ap.onrender.com/download"
+url_input = st.text_input("הלינק שלך:", placeholder="https://www.youtube.com/watch?v=...")
+
 # בחירת סוג ההורדה
 download_type = st.radio("מה ברצונך להוריד?", ["שיר (MP3)", "סרטון וידאו (MP4)"])
 
-# ⚠️ חשוב מאוד: תחליף את הכתובת למטה בלינק האמיתי שקיבלת מ-Render!
-RENDER_BACKEND_URL = "https://your-downloader-api.onrender.com/download"
+# ⚠️ שים כאן את הלינק האמיתי שקיבלת מ-Render (כולל /download בסוף!)
+RENDER_BACKEND_URL = "https://my-downloader-ap.onrender.com/download"
 
 if st.button("הכן קובץ להורדה"):
     if not url_input:
         st.error("🚨 אופס, שכחת להדביק לינק!")
-    elif "your-downloader-api" in RENDER_BACKEND_URL:
-        st.error("🔧 עצור אחי! שכחת לעדכן את הלינק של Render בתוך הקוד של ה-Streamlit.")
     else:
         with st.spinner("⏳ השרת הפרטי שלך מעבד את הקובץ... זה לוקח כמה שניות"):
             try:
                 # קביעת סוג הפורמט עבור השרת
                 backend_type = "mp3" if download_type == "שיר (MP3)" else "mp4"
                 
-                # פנייה לשרת ה-Render שלך שיעשה את העבודה הקשה
+                # פנייה לשרת ה-Render שלך
                 params = {"url": url_input, "type": backend_type}
                 response = requests.get(RENDER_BACKEND_URL, params=params, stream=True, timeout=60)
                 
                 if response.status_code != 200:
-                    raise Exception("השרת של Render החזיר שגיאה. ודא שהלינק ביוטיוב תקין.")
+                    raise Exception("השרת של Render החזיר שגיאה. ודא שהלינק ביוטיוב תקין או שהשרת ברונדר למעלה.")
                 
-                # שליפת שם הקובץ ש-Render שלח בתוך ה-Headers
+                # שליפת שם הקובץ ש-Render שלח
                 content_disp = response.headers.get('Content-Disposition', '')
                 filename = "download.mp3" if backend_type == "mp3" else "download.mp4"
                 if "filename=" in content_disp:
                     filename = content_disp.split('filename=')[1].strip('"')
                 
-                # קריאת הקובץ המוזרם לזיכרון
                 file_bytes = response.content
                 
                 st.success(f"✅ ה{download_type.split(' ')[0]} מוכן!")
