@@ -1,75 +1,74 @@
-import os
-import re
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-import yt_dlp
+import streamlit as st
 import requests
 
-app = FastAPI()
+# הגדרות עמוד ועיצוב בעברית
+st.set_page_config(page_title="Premium Downloader", page_icon="🎵", layout="centered")
 
-# מאפשר לכל אתר לגשת לשרת שלנו
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-def extract_video_id(url):
-    pattern = r'(?:v=|\/)([0-9A-Za-z_-]{11}).*'
-    match = re.search(pattern, url)
-    return match.group(1) if match else None
-
-@app.get("/download")
-def download(url: str, type: str):
-    video_id = extract_video_id(url)
-    if not video_id:
-        raise HTTPException(status_code=400, detail="Invalid YouTube URL")
-    
-    # הגדרות מתקדמות שעוקפות את החסימה על ידי התחזות לאפליקציית מובייל
-    ydl_opts = {
-        'format': 'bestaudio' if type == "mp3" else 'best[ext=mp4]/best',
-        'quiet': True,
-        'no_warnings': True,
-        # הקסם שעוקף את החסימות: מכריח את yt-dlp להתחזות ללקוח אנדרואיד רשמי
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+st.markdown("""
+    <style>
+    .main { text-align: center; direction: rtl; }
+    div.stButton > button:first-child {
+        background-color: #4d76fd;
+        color: white;
+        border-radius: 15px;
+        padding: 12px 24px;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 4px 15px rgba(77, 118, 253, 0.3);
+        width: 100%;
+        font-size: 1.1rem;
     }
-    
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            
-            # לוקחים ישירות את הלינק הישיר לקובץ הגולמי משרתי יוטיוב
-            download_url = info.get('url') if type == "mp3" else info.get('url')
-            if not download_url and 'formats' in info:
-                # אם זה וידאו, ניקח את הפורמט הכי מתאים שיש לו גם סאונד וגם וידאו
-                formats = [f for f in info['formats'] if f.get('acodec') != 'none' and f.get('vcodec') != 'none']
-                if not formats:
-                    formats = info['formats']
-                download_url = formats[-1]['url']
-                
-            title = info.get('title', 'download').replace(' ', '_')
-            ext = "mp3" if type == "mp3" else "mp4"
-            
-            # מזרימים את הקובץ ישירות מהשרת של יוטיוב למשתמש (בלי לשמור על השרת שלנו!)
-            req = requests.get(download_url, stream=True)
-            
-            headers = {
-                'Content-Disposition': f'attachment; filename="{title}.{ext}"'
-            }
-            
-            return StreamingResponse(
-                req.iter_content(chunk_size=1024*1024), 
-                media_type="audio/mpeg" if type == "mp3" else "video/mp4",
-                headers=headers
-            )
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    input { text-align: left; direction: ltr; }
+    .stRadio > div { flex-direction: row; justify-content: center; gap: 20px; }
+    </style>
+""", unsafe_allow_html=True)
 
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+st.title("הורדת שירים וסרטונים מיוטיוב 🎬🎵")
+st.write("הדביקו לינק, בחרו פורמט, והורידו ישירות למכשיר שלכם בצורה יציבה.")
+
+# תיבת קלט ללינק
+url_input = st.text_input("הלינק שלך:", placeholder="https://www.youtube.com/watch?v=...")
+
+# בחירת סוג ההורדה
+download_type = st.radio("מה ברצונך להוריד?", ["שיר (MP3)", "סרטון וידאו (MP4)"])
+
+# ⚠️ חשוב מאוד: תחליף את הכתובת למטה בלינק האמיתי שקיבלת מ-Render!
+RENDER_BACKEND_URL = "https://your-downloader-api.onrender.com/download"
+
+if st.button("הכן קובץ להורדה"):
+    if not url_input:
+        st.error("🚨 אופס, שכחת להדביק לינק!")
+    elif "your-downloader-api" in RENDER_BACKEND_URL:
+        st.error("🔧 עצור אחי! שכחת לעדכן את הלינק של Render בתוך הקוד של ה-Streamlit.")
+    else:
+        with st.spinner("⏳ השרת הפרטי שלך מעבד את הקובץ... זה לוקח כמה שניות"):
+            try:
+                # קביעת סוג הפורמט עבור השרת
+                backend_type = "mp3" if download_type == "שיר (MP3)" else "mp4"
+                
+                # פנייה לשרת ה-Render שלך שיעשה את העבודה הקשה
+                params = {"url": url_input, "type": backend_type}
+                response = requests.get(RENDER_BACKEND_URL, params=params, stream=True, timeout=60)
+                
+                if response.status_code != 200:
+                    raise Exception("השרת של Render החזיר שגיאה. ודא שהלינק ביוטיוב תקין.")
+                
+                # שליפת שם הקובץ ש-Render שלח בתוך ה-Headers
+                content_disp = response.headers.get('Content-Disposition', '')
+                filename = "download.mp3" if backend_type == "mp3" else "download.mp4"
+                if "filename=" in content_disp:
+                    filename = content_disp.split('filename=')[1].strip('"')
+                
+                # קריאת הקובץ המוזרם לזיכרון
+                file_bytes = response.content
+                
+                st.success(f"✅ ה{download_type.split(' ')[0]} מוכן!")
+                st.download_button(
+                    label="⬇️ לחצו כאן לשמירת הקובץ במכשיר",
+                    data=file_bytes,
+                    file_name=filename,
+                    mime="audio/mpeg" if backend_type == "mp3" else "video/mp4"
+                )
+                    
+            except Exception as e:
+                st.error(f"❌ תקלה בהורדה: {str(e)}")
