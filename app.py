@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import re
 
 # הגדרות עמוד ועיצוב בעברית
 st.set_page_config(page_title="Premium Downloader", page_icon="🎵", layout="centered")
@@ -25,7 +24,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("הורדת שירים וסרטונים מיוטיוב 🎬🎵")
-st.write("גרסה יציבה ועוקפת חסימות. הדביקו לינק, בחרו פורמט והורידו ישירות למכשיר.")
+st.write("גרסה יציבה ועוקפת חסימות (Cobalt API). הדביקו לינק והורידו ישירות.")
 
 # תיבת קלט ללינק
 url_input = st.text_input("הלינק שלך:", placeholder="https://www.youtube.com/watch?v=...")
@@ -33,50 +32,63 @@ url_input = st.text_input("הלינק שלך:", placeholder="https://www.youtube
 # בחירת סוג ההורדה
 download_type = st.radio("מה ברצונך להוריד?", ["שיר (MP3)", "סרטון וידאו (MP4)"])
 
-def extract_video_id(url):
-    pattern = r'(?:v=|\/|embed\/|shorts\/)([0-9A-Za-z_-]{11})'
-    match = re.search(pattern, url)
-    return match.group(1) if match else None
-
 if st.button("הכן קובץ להורדה"):
     if not url_input:
         st.error("🚨 אופס, שכחת להדביק לינק!")
     else:
-        video_id = extract_video_id(url_input)
-        if not video_id:
-            st.error("❌ הלינק לא תקין, אנא ודא שהעתקת לינק נכון מיוטיוב.")
-        else:
-            with st.spinner("⏳ המנוע החיצוני מעבד את השיר... זה לוקח כמה שניות"):
-                try:
-                    # שימוש ב-API ציבורי חזק של קהילת המפתחים לעקיפת יוטיוב
-                    format_type = "mp3" if download_type == "שיר (MP3)" else "mp4"
-                    api_url = f"https://api.vexdw.com/download?v={video_id}&format={format_type}"
+        with st.spinner("⏳ המנוע מעבד את הקובץ... זה לוקח כמה שניות"):
+            try:
+                # הגדרת הבקשה לשרת Cobalt הציבורי והרשמי
+                api_url = "https://api.cobalt.tools/"
+                
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                }
+                
+                # הגדרות הפורמט לפי הבחירה של המשתמש
+                is_audio_only = True if download_type == "שיר (MP3)" else False
+                
+                payload = {
+                    "url": url_input,
+                    "vCodec": "h264",      # פורמט וידאו סטנדרטי שנתמך בכל מכשיר
+                    "isAudioOnly": is_audio_only,
+                    "aFormat": "mp3",      # אם זה רק אודיו, שיוריד כ-MP3
+                    "filenamePattern": "classic" # שומר על שם הסרטון המקורי
+                }
+                
+                # שליחת הבקשה ל-Cobalt
+                response = requests.post(api_url, json=payload, headers=headers, timeout=30)
+                
+                if response.status_code != 200:
+                    raise Exception("השרת עמוס כרגע או שיוטיוב חסם את הבקשה הספציפית הזו.")
+                
+                data = response.json()
+                
+                # Cobalt מחזיר סטטוס picker או tunnel או url
+                status = data.get("status")
+                download_link = data.get("url")
+                
+                if status == "error":
+                    raise Exception(data.get("text", "שגיאה לא ידועה במנוע ההורדה."))
+                
+                if not download_link:
+                    raise Exception("לא התקבל לינק תקין להורדה.")
+                
+                # מורידים את הקובץ המוכן מ-Cobalt ומעבירים למשתמש
+                file_response = requests.get(download_link, stream=True)
+                file_bytes = file_response.content
+                
+                ext = "mp3" if is_audio_only else "mp4"
+                filename = f"download.{ext}"
+                
+                st.success(f"✅ ה{download_type.split(' ')[0]} מוכן!")
+                st.download_button(
+                    label="⬇️ לחצו כאן לשמירת הקובץ במכשיר",
+                    data=file_bytes,
+                    file_name=filename,
+                    mime="audio/mpeg" if is_audio_only else "video/mp4"
+                )
                     
-                    response = requests.get(api_url, timeout=30)
-                    
-                    if response.status_code != 200:
-                        raise Exception("השרת החיצוני עמוס כרגע. נסה שוב בעוד רגע.")
-                    
-                    data = response.json()
-                    
-                    if not data.get("success") or not data.get("download_url"):
-                        raise Exception("לא הצלחנו לחלץ את הלינק להורדה. נסה שיר אחר.")
-                    
-                    download_link = data.get("download_url")
-                    title = data.get("title", "download")
-                    ext = "mp3" if format_type == "mp3" else "mp4"
-                    
-                    # מורידים את הקובץ מה-API לזיכרון של האתר שלנו כדי להגיש למשתמש בלחיצה
-                    file_response = requests.get(download_link, stream=True)
-                    file_bytes = file_response.content
-                    
-                    st.success(f"✅ ה{download_type.split(' ')[0]} מוכן!")
-                    st.download_button(
-                        label="⬇️ לחצו כאן לשמירת הקובץ במכשיר",
-                        data=file_bytes,
-                        file_name=f"{title}.{ext}",
-                        mime="audio/mpeg" if format_type == "mp3" else "video/mp4"
-                    )
-                        
-                except Exception as e:
-                    st.error(f"❌ תקלה במנוע ההורדות: {str(e)}")
+            except Exception as e:
+                st.error(f"❌ תקלה במנוע ההורדות: {str(e)}")
